@@ -1,31 +1,35 @@
+import argparse
 import calendar
 import requests
 
 from datetime import datetime
 
 
-USERNAME = ''
-TOKEN = ''
-REPO_NAME = ''
-BASE_URL = 'https://api.github.com/repos/{0}/'.format(REPO_NAME)
-BEGIN_MONTH = '2015-{0}-01'.format(datetime.now().month)
-# BEGIN_MONTH = '2015-10-01'
-now = datetime.now()
-CURRENT_MONTH, LAST_DAY = calendar.monthrange(now.year, now.month)
-END_MONTH = datetime(now.year, now.month, LAST_DAY)
-PARAMS = {'since': BEGIN_MONTH}
+API = {}
 
 report = {'issues': {'open': {}, 'closed': {}},
           'pulls': {'open': {}, 'closed': {}}}
+
+def init_api_params(repo, username, token):
+    API['repo'] = repo
+    API['username'] = username
+    API['token'] = token
+    API['base_url'] = 'https://api.github.com/repos/{0}/'.format(repo)
+    API['begin_month'] = '2015-{0}-01'.format(datetime.now().month)
+    now = datetime.now()
+    current_month, last_day = calendar.monthrange(now.year, now.month)
+    API['end_month'] = datetime(now.year, now.month, last_day)
+    API['params'] = {'since': API.get('begin_month')}
+
 
 
 def update_report(issue_data, data_type,
                   issue_state,  user_key, date_key):
     issue_date = issue_data.get(date_key)
     issue_date = datetime.strptime(issue_date, '%Y-%m-%dT%H:%M:%SZ')
-    begin_month = datetime.strptime(BEGIN_MONTH, '%Y-%m-%d')
+    begin_month = datetime.strptime(API.get('begin_month'), '%Y-%m-%d')
     if (issue_date >= begin_month
-        and issue_date <= END_MONTH):
+        and issue_date <= API.get('end_month')):
         user = issue_data.get(user_key) and \
             issue_data.get(user_key).get('login') or {}
         user_counts = report[data_type][issue_state]
@@ -71,12 +75,11 @@ def display_report(report):
 
 
 def get_issues():
-    issues_url = BASE_URL + 'issues'
+    issues_url = API.get('base_url') + 'issues'
     print issues_url
-    PARAMS['state'] = 'all'
-    print PARAMS
+    API['params']['state'] = 'all'
     r = requests.get(
-            issues_url, auth=(USERNAME, TOKEN), params=PARAMS)
+            issues_url, auth=(API.get('username'), API.get('token')), params=API.get('params'))
     for issue in r.json():
         if issue.get('pull_request'):
             parse_issue(issue_data=issue, data_type='pulls')
@@ -85,10 +88,21 @@ def get_issues():
     print 'We should be done--'
     display_report(report)
 
-
-
 def get_report():
     get_issues()
 
 
-get_report()
+def main():
+    print 'hello main'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('repo',
+                        help='Github repo name eg: Zimbio/Zimbio')
+    parser.add_argument('username', help='Your github username')
+    parser.add_argument('token', help='Your github api access token')
+    args = parser.parse_args()
+    init_api_params(args.repo, args.username, args.token)
+    get_report()
+
+
+if __name__ == "__main__":
+    main()
